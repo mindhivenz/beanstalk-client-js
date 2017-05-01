@@ -8,7 +8,6 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
-    "@mindhive/di": "^4.1.1",
     "babel-runtime": "^6.23.0",
     "fivebeans": "^1.5.0"
   },

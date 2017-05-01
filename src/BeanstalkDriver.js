@@ -29,7 +29,7 @@ export default class BeanstalkDriver {
 
   async outstandingJobCount() {
     return new Promise((resolve, reject) => {
-      this.client.stats((statsErr, response) => {
+      this._client.stats((statsErr, response) => {
         if (statsErr) {
           reject(statsErr)
         } else {
@@ -48,7 +48,7 @@ export default class BeanstalkDriver {
       jsonPayload = true,
     } = {}) {
     await new Promise((resolve, reject) => {
-      this.client.put(priority, delay, ttr, jsonPayload ? JSON.stringify(payload) : payload, (err) => {
+      this._client.put(priority, delay, ttr, jsonPayload ? JSON.stringify(payload) : payload, (err) => {
         if (err) {
           reject(err)
         } else {
@@ -64,7 +64,7 @@ export default class BeanstalkDriver {
       .on('error', done)
       .on('connect', () => {
         if (this.tube) {
-          this.client.use(this.tube, done)
+          this._client.use(this.tube, done)
         } else {
           done()
         }

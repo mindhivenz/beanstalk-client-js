@@ -1,33 +1,59 @@
 import FiveBeansClient from 'fivebeans/lib/client'
-import { app } from '@mindhive/di'
 
 
 export const DEFAULT_TUBE = 'default'
 
-export default class BeanstalkClient {
+class Job {
 
-  log = app().log
+  constructor(id, rawPayload, _client) {
+    this.id = id
+    this.payload = JSON.parse(rawPayload)
+    this._client = _client
+  }
+
+  async done() {
+    if (! this._markedDone) {
+      await new Promise((resolve, reject) => {
+        this._client.destroy(this.id, (err) => {
+          if (err) {
+            reject(err)
+          } else {
+            this._markedDone = true
+            resolve()
+          }
+        })
+      })
+    }
+  }
+
+}
+
+export default class BeanstalkClient {
 
   constructor({
     host = '127.0.0.1',
     port = 11300,
     tube = DEFAULT_TUBE,
   } = {}) {
-    this.client = new FiveBeansClient(host, port)
+    this._client = new FiveBeansClient(host, port)
+    this.tube = tube
     this.connected = new Promise((resolve, reject) => {
-      this.client
+      this._client
         .on('connect', () => {
           if (tube === DEFAULT_TUBE) {
             resolve()
           } else {
-            this.client.watch(tube, (watchErr) => {
+            this._client.watch(tube, (watchErr) => {
               if (watchErr) {
-                reject(new Error(`Beanstalk watch failed: ${watchErr}`))
+                reject(new Error(`Beanstalk watch ${tube} failed: ${watchErr}`))
               } else {
-                this.client.ignore(DEFAULT_TUBE, (ignoreErr) => {
-                  this.log.warn(`Beanstalk ignore ${DEFAULT_TUBE} tube failed: ${ignoreErr}`)
+                this._client.ignore(DEFAULT_TUBE, (ignoreErr) => {
+                  if (ignoreErr) {
+                    reject(new Error(`Beanstalk ignore ${DEFAULT_TUBE} failed: ${ignoreErr}`))
+                  } else {
+                    resolve()
+                  }
                 })
-                resolve()
               }
             })
           }
@@ -46,12 +72,12 @@ export default class BeanstalkClient {
   async reserve() {
     await this.connected
     return await new Promise((resolve, reject) => {
-      this.client.reserve((err, ...args) => {
+      this._client.reserve((err, id, rawPayload) => {
         if (err) {
           reject(err)
         } else {
           try {
-            resolve(this._createJob(...args))
+            resolve(new Job(id, rawPayload, this._client))
           } catch (e) {
             reject(e)
           }
@@ -60,21 +86,12 @@ export default class BeanstalkClient {
     })
   }
 
-  _createJob(id, payload) {
-    const done = async () => {
-      await new Promise((resolve) => {
-        this.client.destroy(id, (err) => {
-          if (err) {
-            this.log.warn(`Failed to destroy job ${id}: ${err}`)
-          }
-          resolve()
-        })
-      })
-    }
-    return {
-      id,
-      payload: JSON.parse(payload),
-      done,
+  async processLoop(asyncJobHandler) {
+    // noinspection InfiniteLoopJS
+    for (;;) {
+      const job = await this.reserve()
+      await asyncJobHandler(job)
+      await job.done()
     }
   }
 
