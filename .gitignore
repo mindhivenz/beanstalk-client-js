@@ -1,5 +1,6 @@
 node_modules
 npm-debug.log
 dist/
-/.idea/workspace.xml
-/.idea/libraries/
+.idea/workspace.xml
+.idea/libraries/
+.idea/markdown-navigator*

@@ -90,6 +90,7 @@ export default class BeanstalkClient {
     // noinspection InfiniteLoopJS
     for (;;) {
       const job = await this.reserve()
+      // REVISIT: should we make this asynchronous (handle jobs in parallel?)
       await asyncJobHandler(job)
       await job.done()
     }
